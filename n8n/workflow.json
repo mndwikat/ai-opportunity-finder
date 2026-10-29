@@ -1,0 +1,297 @@
+{
+  "name": "AI Opportunity Finder – Backlog",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "YOUR-WEBHOOK-ID",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d4ada57f-5b50-46bf-bc24-e7f79593afe2",
+      "name": "Receive call from ElevenLabs",
+      "webhookId": "YOUR-WEBHOOK-ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst body = raw.body ?? raw;\nconst d = body.data ?? {};\nconst vars = d.conversation_initiation_client_data?.dynamic_variables ?? {};\nconst dc = d.analysis?.data_collection_results ?? {};\n\nconst val = (k) => {\n  const x = dc[k]?.value;\n  return x === undefined || x === null || x === '' ? null : x;\n};\nconst num = (x) => (x === null || isNaN(Number(x)) ? null : Number(x));\n\n// Pattern library: default savings (used only when the employee gave no estimate),\n// output types that fit the pattern, and what stays with a person.\nconst PATTERNS = {\n  document_data_extraction: { pct: 50, outputs: ['data_entry'], human: 'Checks extracted entries and handles mismatches' },\n  drafting_from_templates: { pct: 30, outputs: ['document', 'answer_or_reply', 'report'], human: 'Reviews and approves every draft' },\n  summarizing_and_research: { pct: 30, outputs: ['document', 'report', 'approval_or_decision', 'answer_or_reply'], human: 'Verifies sources and makes the final judgment' },\n  policy_qa_assistant: { pct: 40, outputs: ['answer_or_reply'], human: 'Handles exceptions and unusual questions' },\n  email_triage_and_replies: { pct: 30, outputs: ['answer_or_reply', 'coordination_or_chasing'], human: 'Reviews replies before sending' },\n  automated_follow_ups: { pct: 30, outputs: ['coordination_or_chasing', 'approval_or_decision'], human: 'Handles escalations when reminders are ignored' },\n  report_consolidation: { pct: 40, outputs: ['report'], human: 'Reviews the numbers and writes the commentary' },\n  process_automation: { pct: 40, outputs: ['coordination_or_chasing', 'document', 'data_entry', 'approval_or_decision'], human: 'Makes the decisions and approves each case' },\n  no_clear_fit: { pct: 0, outputs: [], human: 'The whole task stays with the person' },\n  not_assessed: { pct: 0, outputs: [], human: 'To be assessed in follow-up' },\n};\nconst WEIGHT = { wants_it: 1, maybe: 0.5, does_not_want: 0, not_tested: 0 };\n\nconst rows = [];\nfor (const n of [1, 2]) {\n  const task = val(`task_${n}_name`);\n  if (!task) continue;\n\n  const freq = num(val(`task_${n}_times_per_week`));\n  const mins = num(val(`task_${n}_minutes_each`));\n  const hours = freq !== null && mins !== null ? Math.round((freq * mins * 46) / 60) : null;\n\n  const pattern = val(`task_${n}_pattern`) ?? 'not_assessed';\n  const p = PATTERNS[pattern] ?? PATTERNS.not_assessed;\n  const reaction = val(`task_${n}_reaction`) ?? 'not_tested';\n\n  const empPct = num(val(`task_${n}_time_freed_pct`));\n  const pct = empPct ?? p.pct;\n  const basis = empPct !== null ? 'Employee estimate' : 'Pattern assumption';\n\n  const saved = hours !== null ? Math.round((hours * pct) / 100) : null;\n  const weighted = saved !== null ? Math.round(saved * (WEIGHT[reaction] ?? 0)) : null;\n\n  // Rules check: does the agent's chosen pattern fit what the task produces?\n  const output = val(`task_${n}_output_type`);\n  const input = val(`task_${n}_input_type`);\n  let check;\n  if (pattern === 'no_clear_fit' || pattern === 'not_assessed') check = 'n/a';\n  else if (!output) check = 'unknown';\n  else {\n    check = p.outputs.includes(output) ? 'ok' : 'review';\n    if (pattern === 'document_data_extraction' && input && !['documents', 'emails_or_messages', 'mixed'].includes(input)) check = 'review';\n  }\n\n  let status;\n  if (pattern === 'not_assessed') status = 'Needs follow-up';\n  else if (pattern === 'no_clear_fit') status = 'No clear fit';\n  else if (reaction === 'does_not_want') status = 'Not wanted';\n  else if (reaction === 'not_tested' || hours === null) status = 'Needs follow-up';\n  else status = 'Ranked';\n\n  rows.push({\n    date: new Date().toISOString().slice(0, 10),\n    conversation_id: d.conversation_id\n      ? `=HYPERLINK(\"https://elevenlabs.io/app/agents/agents/${d.agent_id}/history/${d.conversation_id}\", \"${d.conversation_id.slice(-6)}\")`\n      : '',\n    employee: vars.employee_name ?? '',\n    role: vars.role ?? '',\n    department: vars.department ?? '',\n    task,\n    times_per_week: freq ?? '',\n    minutes_each: mins ?? '',\n    hours_per_year: hours ?? '',\n    pattern,\n    idea: val(`task_${n}_idea`) ?? '',\n    reaction,\n    time_freed_pct: pct,\n    savings_basis: basis,\n    weighted_hours_saved: weighted ?? '',\n    stays_human: p.human,\n    worry: val(`task_${n}_worry`) ?? '',\n    pattern_check: check,\n    status,\n  });\n}\n\nreturn rows.map((r) => ({ json: r }));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "2649fca2-21e4-42be-9175-a022bb3363db",
+      "name": "Score tasks"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q",
+          "mode": "list",
+          "cachedResultName": "AI Opportunity Backlog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Backlog",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "conversation_id",
+              "displayName": "conversation_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "employee",
+              "displayName": "employee",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "role",
+              "displayName": "role",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "department",
+              "displayName": "department",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "task",
+              "displayName": "task",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "description",
+              "displayName": "description",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "times_per_week",
+              "displayName": "times_per_week",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "minutes_each",
+              "displayName": "minutes_each",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "hours_per_year",
+              "displayName": "hours_per_year",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "rule_based",
+              "displayName": "rule_based",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tools",
+              "displayName": "tools",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "frustration",
+              "displayName": "frustration",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "handover",
+              "displayName": "handover",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "value_score",
+              "displayName": "value_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "feasibility_score",
+              "displayName": "feasibility_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "priority_score",
+              "displayName": "priority_score",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_attitude",
+              "displayName": "ai_attitude",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ai_concerns",
+              "displayName": "ai_concerns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {
+          "cellFormat": "USER_ENTERED"
+        }
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        448,
+        0
+      ],
+      "id": "e5dcb000-4706-40d7-9b5b-484795842195",
+      "name": "Add to backlog",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "oASe6lJbelFbR20U",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Receive call from ElevenLabs": {
+      "main": [
+        [
+          {
+            "node": "Score tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score tasks": {
+      "main": [
+        [
+          {
+            "node": "Add to backlog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "471dcab4-7c6c-49ec-877c-8b252972ba0d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "0190f4b3166337be956d419dac362d95ca13b013de410ba6152ac2234fd4b77f"
+  },
+  "nodeGroups": [],
+  "id": "dcN9o4tZVZPHTIE6",
+  "tags": []
+}
