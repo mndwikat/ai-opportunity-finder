@@ -35,17 +35,17 @@
         "operation": "append",
         "documentId": {
           "__rl": true,
-          "value": "11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q",
+          "value": "YOUR-SHEET-ID",
           "mode": "list",
           "cachedResultName": "AI Opportunity Backlog",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q/edit?usp=drivesdk"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR-SHEET-ID/edit?usp=drivesdk"
         },
         "sheetName": {
           "__rl": true,
           "value": "gid=0",
           "mode": "list",
           "cachedResultName": "Backlog",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11ZkLAuk4MZMydQg5vHvuRGpJx25GCsUKW5l4R0qGD5Q/edit#gid=0"
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/YOUR-SHEET-ID/edit#gid=0"
         },
         "columns": {
           "mappingMode": "autoMapInputData",
